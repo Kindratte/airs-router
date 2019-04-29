@@ -1,19 +1,25 @@
 package main
 
 import (
-	"flag"
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/nats-io/go-nats"
-	"hash/fnv"
+	iconfig "github.com/untillpro/airs-iconfig"
+	config "github.com/untillpro/airs-iconfigcon"
+	iqueues "github.com/untillpro/airs-iqueues"
+	queues "github.com/untillpro/airs-iqueuesnats"
+	"github.com/untillpro/gochips"
+	"github.com/untillpro/godif"
+	"github.com/untillpro/godif/iservices"
+	"github.com/untillpro/godif/services"
 	"io/ioutil"
-	"log"
-	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"time"
-
-	"golang.org/x/net/netutil"
 )
 
 const (
@@ -21,6 +27,7 @@ const (
 	partitionDividendVar    = "partition-dividend"
 	resourceNameVar         = "resource-name"
 	resourceIdVar           = "resource-id"
+	noPartyVar              = "rest"
 	consulPrefix            = "router"
 	defaultNATServers       = "nats1,nats2,nats3"
 	defaultPort             = "8080"
@@ -29,150 +36,211 @@ const (
 	defaultConnectionsLimit = 10000
 )
 
-type GoonceRouter struct {
-	nats   *nats.Conn
-	router *mux.Router
-	server *http.Server
-	//TODO consul
-}
+const (
+	RouterPrefix = "router"
+)
 
-func (gr *GoonceRouter) request(resp http.ResponseWriter, partitionNumber string, message []byte) {
-	msg, err := gr.nats.Request(partitionNumber, message, 5*time.Second)
+var queueNumberOfPartitions = make(map[string]int)
+
+func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
+	queueRequest, err := createRequest(req.Method, vars)
 	if err != nil {
-		if gr.nats.LastError() != nil {
-			http.Error(resp, gr.nats.LastError().Error(), http.StatusRequestTimeout)
+		http.Error(resp, err.Error(), http.StatusBadRequest)
+		return
+	}
+	resourceName := vars[resourceNameVar]
+	resourceId := vars[resourceIdVar]
+	queueRequest.Resource = fmt.Sprintf("%d/%s/%s", queueRequest.PartitionDividend, resourceName, resourceId)
+	if req.Body != nil {
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
 			return
 		}
-		http.Error(resp, http.StatusText(http.StatusRequestTimeout), http.StatusRequestTimeout)
+		queueRequest.Args = body
+	}
+	if queueRequest.PartitionDividend == 0 {
+		http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
 		return
 	}
-	strData := string(msg.Data)
-	_, err = fmt.Fprintf(resp, strData)
-	if err != nil {
-		http.Error(resp, http.StatusText(http.StatusRequestTimeout), http.StatusBadRequest)
-	}
+	queueRequest.PartitionNumber = queueRequest.PartitionDividend % numberOfPartitions
+	iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
 }
 
-func calculatePartitionNumber(productAndLocation string) (int, error) {
-	h := fnv.New32a()
-	_, err := h.Write([]byte(productAndLocation))
-	if err != nil {
-		return 0, err
-	}
-	return int(h.Sum32() % 100), nil
-}
-
-func (gr *GoonceRouter) FullPathHandler(resp http.ResponseWriter, req *http.Request) {
+func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	//queueName := vars[queueAliasVar]
+	alias := vars[queueAliasVar]
+	numberOfPartitions := queueNumberOfPartitions[alias]
+	if numberOfPartitions == 0 {
+		pathSuffix := vars[noPartyVar]
+		queueRequest := &iqueues.Request{
+			Method:            iqueues.NameToHTTPMethod[req.Method],
+			QueueID:           alias + ":0",
+			PartitionDividend: 0,
+			PartitionNumber:   0,
+			Resource:          pathSuffix,
+		}
+		if req.Body != nil {
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
+				return
+			}
+			queueRequest.Args = body
+		}
+		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
+	} else {
+		http.Error(resp, "wrong route to no party handler", http.StatusBadRequest)
+		return
+	}
+}
+
+func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
+	keys := make([]string, len(queueNumberOfPartitions))
+	i := 0
+	for k := range queueNumberOfPartitions {
+		keys[i] = k
+		i++
+	}
+	marshaled, err := json.Marshal(keys)
+	if err != nil {
+		http.Error(resp, "can't marshal queue aliases", http.StatusBadRequest)
+	}
+	_, err = fmt.Fprintf(resp, string(marshaled))
+	if err != nil {
+		http.Error(resp, "can't write response", http.StatusBadRequest)
+	}
+}
+
+func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		queueRequest, err := createRequest(req.Method, vars)
+		if err != nil {
+			http.Error(resp, err.Error(), http.StatusBadRequest)
+			return
+		}
+		queueRequest.Resource = fmt.Sprintf("%d", queueRequest.PartitionDividend)
+		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
+	}
+}
+
+func (s *Service) HelpWithResourceIdHandler(ctx context.Context) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		resourceId := vars[resourceIdVar]
+		queueRequest, err := createRequest(req.Method, vars)
+		if err != nil {
+			http.Error(resp, err.Error(), http.StatusBadRequest)
+			return
+		}
+		queueRequest.Resource = fmt.Sprintf("%d/%s", queueRequest.PartitionDividend, resourceId)
+		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
+	}
+}
+
+func createRequest(reqMethod string, vars map[string]string) (*iqueues.Request, error) {
+	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 	partitionDividend := vars[partitionDividendVar]
-	resourceName := vars[resourceNameVar]
-	//resourceId := vars[resourceIdVar]
-	body, err := ioutil.ReadAll(req.Body)
+	partitionDividendNum, err := strconv.Atoi(partitionDividend)
 	if err != nil {
-		http.Error(resp, "Can't read post body: "+string(body), http.StatusBadRequest)
-		return
+		return nil, errors.New("wrong partition dividend " + partitionDividend)
 	}
-	partitionNumber, err := calculatePartitionNumber(resourceName + partitionDividend)
-	if err != nil {
-		http.Error(resp, "Can't calculate partition number", http.StatusConflict)
-		return
-	}
-	gr.request(resp, strconv.Itoa(partitionNumber), body)
+	return &iqueues.Request{
+		Method:            iqueues.NameToHTTPMethod[reqMethod],
+		QueueID:           vars[queueAliasVar] + ":" + strconv.Itoa(numberOfPartitions),
+		PartitionDividend: partitionDividendNum,
+	}, nil
 }
 
-func (gr *GoonceRouter) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
-	log.Println("in queue names")
-	fmt.Fprintf(resp, "queue_names")
-}
-
-func (gr *GoonceRouter) HelpHandler(resp http.ResponseWriter, req *http.Request) {
-	log.Println("in help")
-	fmt.Fprintf(resp, "help")
-}
-
-func (gr *GoonceRouter) ResourceNameHandler(resp http.ResponseWriter, req *http.Request) {
-	log.Println("in resource name")
-	fmt.Fprintf(resp, "resourse_name")
-}
-
-func (gr *GoonceRouter) HelpWithResourceIdHandler(resp http.ResponseWriter, req *http.Request) {
-	log.Println("in help with reousrce-id")
-	fmt.Fprintf(resp, "help_resource_id")
-}
-
-func (gr *GoonceRouter) ResourceIdHandler(resp http.ResponseWriter, req *http.Request) {
-	log.Println("in ok no part")
-	fmt.Fprintf(resp, "ok")
-}
-
-func (gr *GoonceRouter) RegisterHandlers() {
-	gr.router.HandleFunc("/", gr.QueueNamesHandler)
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}", queueAliasVar), gr.HelpHandler).
+func (s *Service) RegisterHandlers(ctx context.Context) {
+	s.router.HandleFunc("/", s.QueueNamesHandler)
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), s.HelpHandler(ctx)).
 		Methods("GET")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), gr.HelpHandler).
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar,
+		resourceIdVar), s.HelpWithResourceIdHandler(ctx)).
 		Methods("GET")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/_/{%s:[0-9]+}", queueAliasVar, partitionDividendVar),
-		gr.HelpWithResourceIdHandler).
-		Methods("GET")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar,
-		resourceIdVar), gr.HelpWithResourceIdHandler).
-		Methods("GET")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar, partitionDividendVar,
-		resourceNameVar), gr.ResourceNameHandler).
-		Methods("GET", "POST", "PATCH")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/_/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar), gr.ResourceNameHandler).
-		Methods("GET", "POST", "PATCH").
-		Queries(partitionDividendVar, fmt.Sprintf("{%s:[0-9]+}", partitionDividendVar))
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/_/{%s:[a-zA-Z]+}/{%s:[0-9]+}", queueAliasVar, resourceNameVar, resourceIdVar),
-		gr.ResourceIdHandler).
-		Methods("GET")
-	gr.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar,
-		resourceNameVar, resourceIdVar), gr.ResourceIdHandler).
-		Methods("GET")
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar,
+		resourceNameVar, resourceIdVar), func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
+		if numberOfPartitions == 0 {
+			s.NoPartyHandler(ctx, resp, req)
+		} else {
+			s.PartitionedHandler(ctx, numberOfPartitions, vars, resp, req)
+		}
+	}).
+		Methods("GET", "POST")
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z0-9=\\-\\/]+}", queueAliasVar, noPartyVar),
+		func(resp http.ResponseWriter, req *http.Request) {
+			s.NoPartyHandler(ctx, resp, req)
+		}).
+		Methods("GET", "POST")
 }
 
 func main() {
-	//var nATSServers = flag.String("ns", defaultNATServers, "The nats server URLs (separated by comma)")
-	var port = flag.String("p", defaultPort, "Server port")
-	var readTimeout = flag.Int("rt", defaultReadTimeout, "Read timeout in seconds")
-	var writeTimeout = flag.Int("wt", defaultWriteTimeout, "Write timeout in seconds")
-	var connectionsLimit = flag.Int("cl", defaultConnectionsLimit, "Limit of incoming connections")
 
-	flag.Parse()
+	var err error
+	ctx, _ := context.WithCancel(context.Background())
 
-	//opts := []nats.Option{nats.Name("Router")}
-	//nc, err := nats.Connect(*nATSServers, opts...)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//defer nc.Close()
+	services.DeclareRequire()
+	godif.Require(&iconfig.PutConfig)
+	godif.Require(&iconfig.GetConfig)
 
-	nc := &nats.Conn{}
-
-	r := mux.NewRouter()
-
-	listener, err := net.Listen("tcp", ":"+defaultPort)
+	var confService = config.Service{Host: "127.0.0.1", Port: 8500}
+	config.Declare(confService)
+	ctx, err = confService.Start(ctx)
 	if err != nil {
-		log.Fatal(err)
-	}
-	defer listener.Close()
-
-	listener = netutil.LimitListener(listener, *connectionsLimit)
-
-	server := &http.Server{
-		Addr:         ":" + *port,
-		Handler:      r,
-		ReadTimeout:  time.Duration(*readTimeout) * time.Second,
-		WriteTimeout: time.Duration(*writeTimeout) * time.Second,
+		gochips.Fatal(err)
 	}
 
-	goonceRouter := GoonceRouter{nc, r, server}
-	goonceRouter.RegisterHandlers()
-	log.Println("Handlers registered")
+	//TEST
+	queueNumberOfPartitions["air-bo-view"] = 0
+	queueNumberOfPartitions["air-bo"] = 10
 
-	log.Println("Starting server...")
-	if err := goonceRouter.server.Serve(listener); err != nil {
-		log.Fatal(err)
+	godif.ProvideKeyValue(&iqueues.NonPartyHandlers, "air-bo-view:0", queues.AirBoView)
+	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", queues.Factory)
+	//TEST
+
+	godif.Require(&iqueues.InvokeFromHTTPRequest)
+
+	var queuesService queues.Service
+	err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
+	if err != nil {
+		queuesService = queues.Service{Servers: "0.0.0.0"}
 	}
+	queues.Declare(queuesService)
+
+	var routerService Service
+	err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
+	if err != nil {
+		routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
+	}
+	Declare(routerService)
+
+	ctx, err = iservices.Start(ctx)
+	if err != nil {
+		gochips.Info(err)
+	}
+
+	serv := getService(ctx)
+
+	gochips.Info("Router started")
+	go func() {
+		if err := serv.server.Serve(serv.listener); err != nil {
+			gochips.Info(err)
+		}
+	}()
+
+	c := make(chan os.Signal)
+
+	signal.Notify(c, os.Interrupt)
+
+	<-c
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	serv.Stop(ctx)
+	gochips.Info("Shutting down")
+	os.Exit(0)
 }
