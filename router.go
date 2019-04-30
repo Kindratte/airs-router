@@ -16,10 +16,7 @@ import (
 	"github.com/untillpro/godif/services"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"time"
 )
 
 const (
@@ -181,18 +178,19 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 func main() {
 
 	var err error
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	services.DeclareRequire()
 	godif.Require(&iconfig.PutConfig)
 	godif.Require(&iconfig.GetConfig)
+	godif.Require(&iqueues.InvokeFromHTTPRequest)
 
-	var confService = config.Service{Host: "127.0.0.1", Port: 8500}
-	config.Declare(confService)
-	ctx, err = confService.Start(ctx)
-	if err != nil {
-		gochips.Fatal(err)
-	}
+	//var confService = config.Service{Host: "127.0.0.1", Port: 8500}
+	//config.Declare(confService)
+	//ctx, err = confService.Start(ctx)
+	//if err != nil {
+	//	gochips.Fatal(err)
+	//}
 
 	//TEST
 	queueNumberOfPartitions["air-bo-view"] = 0
@@ -202,45 +200,30 @@ func main() {
 	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", queues.Factory)
 	//TEST
 
-	godif.Require(&iqueues.InvokeFromHTTPRequest)
+	config.Declare(config.Service{Host: "127.0.0.1", Port: 8500})
+	queues.Declare(queues.Service{Servers: "0.0.0.0"})
+	Declare(Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1})
+	//var queuesService queues.Service
+	//err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
+	//if err != nil {
+	//	queuesService = queues.Service{Servers: "0.0.0.0"}
+	//}
+	//queues.Declare(queuesService)
 
-	var queuesService queues.Service
-	err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
-	if err != nil {
-		queuesService = queues.Service{Servers: "0.0.0.0"}
-	}
-	queues.Declare(queuesService)
+	//var routerService Service
+	//err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
+	//if err != nil {
+	//	routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
+	//}
+	//Declare(routerService)
 
-	var routerService Service
-	err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
-	if err != nil {
-		routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
+	errs := godif.ResolveAll()
+	if errs != nil {
+		gochips.Fatal(errs)
 	}
-	Declare(routerService)
 
 	ctx, err = iservices.Start(ctx)
 	if err != nil {
 		gochips.Info(err)
 	}
-
-	serv := getService(ctx)
-
-	gochips.Info("Router started")
-	go func() {
-		if err := serv.server.Serve(serv.listener); err != nil {
-			gochips.Info(err)
-		}
-	}()
-
-	c := make(chan os.Signal)
-
-	signal.Notify(c, os.Interrupt)
-
-	<-c
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	serv.Stop(ctx)
-	gochips.Info("Shutting down")
-	os.Exit(0)
 }

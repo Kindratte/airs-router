@@ -10,9 +10,12 @@ package main
 import (
 	"context"
 	"github.com/gorilla/mux"
+	"github.com/untillpro/gochips"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"time"
 )
@@ -59,7 +62,25 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 
 	s.RegisterHandlers(ctx)
 
-	return context.WithValue(ctx, router, s), nil
+	gochips.Info("Router started")
+	go func() {
+		if err := s.server.Serve(s.listener); err != nil {
+			gochips.Info(err)
+		}
+	}()
+
+	c := make(chan os.Signal)
+
+	signal.Notify(c, os.Interrupt)
+
+	<-c
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	s.Stop(ctx)
+	gochips.Info("Shutting down")
+	os.Exit(0)
+	return nil, nil
 }
 
 // Stop s.e.
