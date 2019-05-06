@@ -21,6 +21,7 @@ import (
 	"time"
 )
 
+//Router service
 type Service struct {
 	Port, WriteTimeout, ReadTimeout, ConnectionsLimit int
 	router                                            *mux.Router

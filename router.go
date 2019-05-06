@@ -29,6 +29,7 @@ const (
 
 var queueNumberOfPartitions = make(map[string]int)
 
+//Handler partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
 	queueRequest, err := createRequest(req.Method, vars)
 	if err != nil {
@@ -54,6 +55,7 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 	iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
 }
 
+//Handle no party requests
 func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	alias := vars[queueAliasVar]
@@ -82,6 +84,7 @@ func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, 
 	}
 }
 
+//Returns registered queue names
 func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
 	keys := make([]string, len(queueNumberOfPartitions))
 	i := 0
@@ -99,6 +102,7 @@ func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request)
 	}
 }
 
+//Returns list of resources
 func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
@@ -112,6 +116,7 @@ func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 	}
 }
 
+//Describes given resource
 func (s *Service) HelpWithResourceIdHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
@@ -175,6 +180,8 @@ func addTestHandlers() {
 }
 
 func main() {
+
+	//TODO flags or config.yml? or both?
 
 	services.DeclareRequire()
 
