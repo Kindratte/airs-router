@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"github.com/gorilla/mux"
+	"github.com/untillpro/airs-iconfig"
 	"github.com/untillpro/gochips"
 	"golang.org/x/net/netutil"
 	"net"
@@ -30,20 +31,36 @@ type Service struct {
 type contextKeyType string
 
 const (
-	router = contextKeyType("router")
+	router       = contextKeyType("router")
+	RouterPrefix = "router"
 )
 
 func getService(ctx context.Context) *Service {
 	return ctx.Value(router).(*Service)
 }
 
+func (s *Service) loadOrPutConfig(ctx context.Context) error {
+	err := iconfig.GetConfig(ctx, RouterPrefix, &s)
+	if err != nil {
+		gochips.Info("can't find router config in consul, use default")
+		err = iconfig.PutConfig(ctx, RouterPrefix, &s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
+	err := s.loadOrPutConfig(ctx)
+	if err != nil {
+		return ctx, err
+	}
+
 	s.router = mux.NewRouter()
 
 	port := strconv.Itoa(s.Port)
-
-	var err error
 	s.listener, err = net.Listen("tcp", ":"+port)
 	if err != nil {
 		return ctx, nil

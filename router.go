@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
-	iconfig "github.com/untillpro/airs-iconfig"
+	"github.com/untillpro/airs-iconfig"
 	config "github.com/untillpro/airs-iconfigcon"
-	iqueues "github.com/untillpro/airs-iqueues"
+	"github.com/untillpro/airs-iqueues"
 	queues "github.com/untillpro/airs-iqueuesnats"
 	"github.com/untillpro/gochips"
 	"github.com/untillpro/godif"
@@ -20,21 +20,11 @@ import (
 )
 
 const (
-	queueAliasVar           = "queue-alias"
-	partitionDividendVar    = "partition-dividend"
-	resourceNameVar         = "resource-name"
-	resourceIdVar           = "resource-id"
-	noPartyVar              = "rest"
-	consulPrefix            = "router"
-	defaultNATServers       = "nats1,nats2,nats3"
-	defaultPort             = "8080"
-	defaultReadTimeout      = 10
-	defaultWriteTimeout     = 10
-	defaultConnectionsLimit = 10000
-)
-
-const (
-	RouterPrefix = "router"
+	queueAliasVar        = "queue-alias"
+	partitionDividendVar = "partition-dividend"
+	resourceNameVar      = "resource-name"
+	resourceIdVar        = "resource-id"
+	noPartyVar           = "rest"
 )
 
 var queueNumberOfPartitions = make(map[string]int)
@@ -179,73 +169,24 @@ func addTestHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
 
-	godif.ProvideKeyValue(&iqueues.NonPartyHandlers, "air-bo-view:0", queues.AirBoView)
-	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", queues.Factory)
-}
-
-//TODO pass configs throw flags or config file
-func getConfiguredServices(ctx context.Context) (config.Service, queues.Service, Service) {
-
-	var err error
-	services.DeclareRequire()
-	godif.Require(&iconfig.PutConfig)
-	godif.Require(&iconfig.GetConfig)
-
-	var confService = config.Service{Host: "127.0.0.1", Port: 8500}
-	config.Declare(confService)
-	ctx, err = confService.Start(ctx)
-	if err != nil {
-		gochips.Fatal(err)
-	}
-
-	errs := godif.ResolveAll()
-	if errs != nil {
-		gochips.Fatal(errs)
-	}
-
-	var queuesService queues.Service
-	err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
-	if err != nil {
-		gochips.Info("can't find queues config in consul, use default")
-		queuesService = queues.Service{Servers: "0.0.0.0"}
-		err = iconfig.PutConfig(ctx, queues.QueuesPrefix, &queuesService)
-		if err != nil {
-			gochips.Fatal(err)
-		}
-	}
-
-	var routerService Service
-	err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
-	if err != nil {
-		gochips.Info("can't find router config in consul, use default")
-		routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
-		err = iconfig.PutConfig(ctx, RouterPrefix, &routerService)
-		if err != nil {
-			gochips.Fatal(err)
-		}
-	}
-
-	godif.Reset()
-
-	return confService, queuesService, routerService
+	godif.ProvideKeyValue(&iqueues.NonPartyHandlers, "air-bo-view:0", iqueues.AirBoView)
+	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", iqueues.Factory)
 }
 
 func main() {
 
-	ctx := context.Background()
+	services.DeclareRequire()
 
-	confService, queuesService, routerService := getConfiguredServices(ctx)
+	godif.Require(&iconfig.PutConfig)
+	godif.Require(&iconfig.GetConfig)
+	godif.Require(&iqueues.InvokeFromHTTPRequest)
+
+	config.Declare(config.Service{Host: "127.0.0.1", Port: 8500})
+	queues.Declare(queues.Service{Servers: "0.0.0.0"})
+	Declare(Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1})
 
 	//only for testing purposes
 	addTestHandlers()
-
-	services.DeclareRequire()
-	godif.Require(&iqueues.InvokeFromHTTPRequest)
-
-	//TODO in future we might need to provide put and get here to update configs automatically
-	godif.ProvideSliceElement(&iservices.Services, &confService)
-	queues.Declare(queuesService)
-	Declare(routerService)
 
 	err := iservices.Run()
 	if err != nil {
