@@ -1,5 +1,5 @@
-# goonce-router
-Router for goonce cluster
+# airs-router
+Router for airs cluster
 
 # Queue ID
 
