@@ -165,6 +165,7 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 		Methods("GET", "POST")
 }
 
+//TEST
 func addTestHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
@@ -185,8 +186,9 @@ func main() {
 	queues.Declare(queues.Service{Servers: "0.0.0.0"})
 	Declare(Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1})
 
-	//only for testing purposes
+	//TEST
 	addTestHandlers()
+	//TEST
 
 	err := iservices.Run()
 	if err != nil {
