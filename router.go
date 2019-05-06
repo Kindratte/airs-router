@@ -175,54 +175,79 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 		Methods("GET", "POST")
 }
 
-func main() {
-
-	var err error
-	ctx := context.Background()
-
-	services.DeclareRequire()
-	godif.Require(&iconfig.PutConfig)
-	godif.Require(&iconfig.GetConfig)
-	godif.Require(&iqueues.InvokeFromHTTPRequest)
-
-	//var confService = config.Service{Host: "127.0.0.1", Port: 8500}
-	//config.Declare(confService)
-	//ctx, err = confService.Start(ctx)
-	//if err != nil {
-	//	gochips.Fatal(err)
-	//}
-
-	//TEST
+func addTestHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
 
 	godif.ProvideKeyValue(&iqueues.NonPartyHandlers, "air-bo-view:0", queues.AirBoView)
 	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", queues.Factory)
-	//TEST
+}
 
-	config.Declare(config.Service{Host: "127.0.0.1", Port: 8500})
-	queues.Declare(queues.Service{Servers: "0.0.0.0"})
-	Declare(Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1})
-	//var queuesService queues.Service
-	//err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
-	//if err != nil {
-	//	queuesService = queues.Service{Servers: "0.0.0.0"}
-	//}
-	//queues.Declare(queuesService)
+//TODO pass configs throw flags or config file
+func getConfiguredServices(ctx context.Context) (config.Service, queues.Service, Service) {
 
-	//var routerService Service
-	//err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
-	//if err != nil {
-	//	routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
-	//}
-	//Declare(routerService)
+	var err error
+	services.DeclareRequire()
+	godif.Require(&iconfig.PutConfig)
+	godif.Require(&iconfig.GetConfig)
+
+	var confService = config.Service{Host: "127.0.0.1", Port: 8500}
+	config.Declare(confService)
+	ctx, err = confService.Start(ctx)
+	if err != nil {
+		gochips.Fatal(err)
+	}
 
 	errs := godif.ResolveAll()
 	if errs != nil {
 		gochips.Fatal(errs)
 	}
 
-	ctx, err = iservices.Start(ctx)
+	var queuesService queues.Service
+	err = iconfig.GetConfig(ctx, queues.QueuesPrefix, &queuesService)
+	if err != nil {
+		gochips.Info("can't find queues config in consul, use default")
+		queuesService = queues.Service{Servers: "0.0.0.0"}
+		err = iconfig.PutConfig(ctx, queues.QueuesPrefix, &queuesService)
+		if err != nil {
+			gochips.Fatal(err)
+		}
+	}
+
+	var routerService Service
+	err = iconfig.GetConfig(ctx, RouterPrefix, &routerService)
+	if err != nil {
+		gochips.Info("can't find router config in consul, use default")
+		routerService = Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1}
+		err = iconfig.PutConfig(ctx, RouterPrefix, &routerService)
+		if err != nil {
+			gochips.Fatal(err)
+		}
+	}
+
+	godif.Reset()
+
+	return confService, queuesService, routerService
+}
+
+func main() {
+
+	ctx := context.Background()
+
+	confService, queuesService, routerService := getConfiguredServices(ctx)
+
+	//only for testing purposes
+	addTestHandlers()
+
+	services.DeclareRequire()
+	godif.Require(&iqueues.InvokeFromHTTPRequest)
+
+	//TODO in future we might need to provide put and get here to update configs automatically
+	godif.ProvideSliceElement(&iservices.Services, &confService)
+	queues.Declare(queuesService)
+	Declare(routerService)
+
+	err := iservices.Run()
 	if err != nil {
 		gochips.Info(err)
 	}
