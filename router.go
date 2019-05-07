@@ -197,7 +197,6 @@ func main() {
 	flag.Parse()
 
 	//TODO flags or config.yml? or both?
-	//test directcd
 
 	services.DeclareRequire()
 
