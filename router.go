@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/untillpro/airs-iconfig"
@@ -20,11 +21,15 @@ import (
 )
 
 const (
-	queueAliasVar        = "queue-alias"
-	partitionDividendVar = "partition-dividend"
-	resourceNameVar      = "resource-name"
-	resourceIdVar        = "resource-id"
-	noPartyVar           = "rest"
+	queueAliasVar                 = "queue-alias"
+	partitionDividendVar          = "partition-dividend"
+	resourceNameVar               = "resource-name"
+	resourceIdVar                 = "resource-id"
+	noPartyVar                    = "rest"
+	defaultRouterPort             = 8822
+	defaultRouterReadTimeout      = 10
+	defaultRouterWriteTimeout     = 10
+	defaultRouterConnectionsLimit = 10000
 )
 
 var queueNumberOfPartitions = make(map[string]int)
@@ -179,7 +184,17 @@ func addTestHandlers() {
 	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", iqueues.Factory)
 }
 
+//TEST
+
 func main() {
+	var consulHost = flag.String("ch", config.DefaultConsulHost, "Consul server URL")
+	var consulPort = flag.Int("cp", config.DefaultConsulPort, "Consul port")
+	var natsServers = flag.String("ns", queues.DefaultNatsHost, "The nats server URLs (separated by comma)")
+	var routerPort = flag.Int("p", defaultRouterPort, "Server port")
+	var routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
+	var routerReadTimeout = flag.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
+	var routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+	flag.Parse()
 
 	//TODO flags or config.yml? or both?
 
@@ -189,9 +204,10 @@ func main() {
 	godif.Require(&iconfig.GetConfig)
 	godif.Require(&iqueues.InvokeFromHTTPRequest)
 
-	config.Declare(config.Service{Host: "127.0.0.1", Port: 8500})
-	queues.Declare(queues.Service{Servers: "0.0.0.0"})
-	Declare(Service{Port: 8822, WriteTimeout: 10, ReadTimeout: 10, ConnectionsLimit: -1})
+	config.Declare(config.Service{Host: *consulHost, Port: uint16(*consulPort)})
+	queues.Declare(queues.Service{Servers: *natsServers})
+	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
+		ConnectionsLimit: *routerConnectionsLimit})
 
 	//TEST
 	addTestHandlers()
