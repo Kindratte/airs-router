@@ -1,0 +1,23 @@
+version: '3.3'
+
+services:
+  airs-router:
+    image: kindratte/directcd:1.0
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.frontend.rule=PathPrefixStrip:/airs-router
+        - traefik.port=8822
+        - traefik.docker.network=webgateway
+    environment:
+      - REPO=https://github.com/untillpro/airs-router
+      - ARGS=-ch traefik_consul_server -ns n_nats1,n_nats2,n_nats3
+    networks:
+      - traefik
+      - webgateway
+
+networks:
+  traefik:
+    external: true
+  webgateway:
+    external: true
