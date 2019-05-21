@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/untillpro/airs-iconfig"
 	config "github.com/untillpro/airs-iconfigcon"
+	in10n "github.com/untillpro/airs-in10n"
 	"github.com/untillpro/airs-iqueues"
 	queues "github.com/untillpro/airs-iqueuesnats"
 	"github.com/untillpro/gochips"
@@ -50,7 +51,7 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 			http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
 			return
 		}
-		queueRequest.Args = body
+		queueRequest.Args = string(body)
 	}
 	if queueRequest.PartitionDividend == 0 {
 		http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
@@ -179,6 +180,8 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 func addTestHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
+	queueNumberOfPartitions["subscribe"] = 1
+	queueNumberOfPartitions["notify"] = 1
 
 	godif.ProvideKeyValue(&iqueues.NonPartyHandlers, "air-bo-view:0", iqueues.AirBoView)
 	godif.ProvideKeyValue(&iqueues.PartitionHandlerFactories, "air-bo:10", iqueues.Factory)
@@ -196,22 +199,21 @@ func main() {
 	var routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
 	flag.Parse()
 
-	//TODO flags or config.yml? or both?
-
 	services.DeclareRequire()
 
 	godif.Require(&iconfig.PutConfig)
 	godif.Require(&iconfig.GetConfig)
 	godif.Require(&iqueues.InvokeFromHTTPRequest)
+	godif.Require(&iqueues.Invoke)
 
 	config.Declare(config.Service{Host: *consulHost, Port: uint16(*consulPort)})
+	in10n.Declare(in10n.Service{Port: 8877, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
+		ConnectionsLimit: *routerConnectionsLimit})
 	queues.Declare(queues.Service{Servers: *natsServers})
 	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
 		ConnectionsLimit: *routerConnectionsLimit})
 
-	//TEST
 	addTestHandlers()
-	//TEST
 
 	err := iservices.Run()
 	if err != nil {

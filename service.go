@@ -14,8 +14,6 @@ import (
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
 	"time"
 )
@@ -28,12 +26,12 @@ type Service struct {
 	listener                                          net.Listener
 }
 
-type contextKeyType string
+type routerKeyType string
 
-const router = contextKeyType("router")
+const routerKey = routerKeyType("router")
 
 func getService(ctx context.Context) *Service {
-	return ctx.Value(router).(*Service)
+	return ctx.Value(routerKey).(*Service)
 }
 
 // Start s.e.
@@ -67,19 +65,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 			gochips.Info(err)
 		}
 	}()
-
-	c := make(chan os.Signal)
-
-	signal.Notify(c, os.Interrupt)
-
-	<-c
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	s.Stop(ctx)
-	gochips.Info("Shutting down")
-	os.Exit(0)
-	return nil, nil
+	return context.WithValue(ctx, routerKey, s), nil
 }
 
 // Stop s.e.
