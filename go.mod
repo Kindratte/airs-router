@@ -1,4 +1,4 @@
-module github.com/untillpro/goonce-router
+module github.com/untillpro/airs-router
 
 go 1.12
 
@@ -15,3 +15,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 )
+
+replace github.com/untillpro/airs-in10n => ../airs-in10n
+
+replace github.com/untillpro/airs-iqueues => ../airs-iqueues
