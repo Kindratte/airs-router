@@ -39,6 +39,8 @@ github.com/untillpro/airs-in10n v0.0.0-20190521083904-2832dbff7c8a h1:GsIS1TvXu2
 github.com/untillpro/airs-in10n v0.0.0-20190521083904-2832dbff7c8a/go.mod h1:kdwdn4/b3Lr+agkI8RLZ8a7A4ufWaZOKKxELYK8ucqU=
 github.com/untillpro/airs-iqueues v0.0.0-20190506112352-3e4f63452ed5 h1:C8KX1F9aq6RhfhecTxVD9sVgBMHretoF11qARFjDqOs=
 github.com/untillpro/airs-iqueues v0.0.0-20190506112352-3e4f63452ed5/go.mod h1:IEdwsGFU9bty0PtlH2A9Yeym3RKHKDmXlYiWcEbwcSI=
+github.com/untillpro/airs-iqueues v0.0.0-20190603082602-ea219dbc1b0f h1:RjQ9oc8EKKMJt6nm8nqmiOu1Un1SZHXjbBx6hFb0JS0=
+github.com/untillpro/airs-iqueues v0.0.0-20190603082602-ea219dbc1b0f/go.mod h1:IEdwsGFU9bty0PtlH2A9Yeym3RKHKDmXlYiWcEbwcSI=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190514115615-0035cf11e608 h1:4bBS2yxt3G+zvtxLGs2/xkeUk/cRWfULWcnqWffnD60=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190514115615-0035cf11e608/go.mod h1:S+lynp4yQIZq9a7RtoKr7OFYNmtHuy5/+Z14/jYjDr8=
 github.com/untillpro/gochips v1.9.0 h1:RpvKppiix6uzKSVBBQNlrD17dk7QCtVLw3EBNDOH5DI=
