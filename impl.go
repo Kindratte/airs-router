@@ -48,7 +48,7 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 		http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
 		return
 	}
-	queueRequest.PartitionNumber = queueRequest.PartitionDividend % numberOfPartitions
+	queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
 	iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
 }
 
@@ -118,7 +118,7 @@ func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error
 	vars := mux.Vars(req)
 	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 	partitionDividend := vars[partitionDividendVar]
-	partitionDividendNum, err := strconv.Atoi(partitionDividend)
+	partitionDividendNum, err := strconv.ParseInt(partitionDividend, 10, 64)
 	if err != nil {
 		return nil, errors.New("wrong partition dividend " + partitionDividend)
 	}
