@@ -26,7 +26,7 @@ const (
 	resourceVar          = "resource"
 )
 
-var queueNumberOfPartitions = make(map[string]int)
+var QueueNumberOfPartitions = make(map[string]int)
 
 //Handler partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
@@ -56,7 +56,7 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	alias := vars[queueAliasVar]
-	numberOfPartitions := queueNumberOfPartitions[alias]
+	numberOfPartitions := QueueNumberOfPartitions[alias]
 	if numberOfPartitions == 0 {
 		pathSuffix := vars[resourceVar]
 		queueRequest := &iqueues.Request{
@@ -85,9 +85,9 @@ func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, 
 
 //Returns registered queue names
 func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
-	keys := make([]string, len(queueNumberOfPartitions))
+	keys := make([]string, len(QueueNumberOfPartitions))
 	i := 0
-	for k := range queueNumberOfPartitions {
+	for k := range QueueNumberOfPartitions {
 		keys[i] = k
 		i++
 	}
@@ -116,7 +116,7 @@ func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 
 func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error) {
 	vars := mux.Vars(req)
-	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
+	numberOfPartitions := QueueNumberOfPartitions[vars[queueAliasVar]]
 	partitionDividend := vars[partitionDividendVar]
 	partitionDividendNum, err := strconv.ParseInt(partitionDividend, 10, 64)
 	if err != nil {
@@ -131,15 +131,13 @@ func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error
 	}, nil
 }
 
-func (s *Service) chooseHandler(ctx context.Context) http.HandlerFunc {
-	return func(resp http.ResponseWriter, req *http.Request) {
-		vars := mux.Vars(req)
-		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
-		if numberOfPartitions == 0 {
-			s.NoPartyHandler(ctx, resp, req)
-		} else {
-			s.PartitionedHandler(ctx, numberOfPartitions, vars, resp, req)
-		}
+func (s *Service) chooseHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	numberOfPartitions := QueueNumberOfPartitions[vars[queueAliasVar]]
+	if numberOfPartitions == 0 {
+		s.NoPartyHandler(ctx, resp, req)
+	} else {
+		s.PartitionedHandler(ctx, numberOfPartitions, vars, resp, req)
 	}
 }
 
@@ -149,22 +147,22 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 		Methods("GET")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}?{%s:[a-zA-Z0-9=\\-\\/]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar, resourceVar), func(resp http.ResponseWriter, req *http.Request) {
-		s.chooseHandler(ctx)
+		s.chooseHandler(ctx, resp, req)
 	}).
-		Methods("GET", "POST", "PATCH", "DELETE")
+		Methods("GET", "POST", "PATCH", "PUT")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), func(resp http.ResponseWriter, req *http.Request) {
-		s.chooseHandler(ctx)
+		s.chooseHandler(ctx, resp, req)
 	}).
-		Methods("GET", "POST", "PATCH", "DELETE")
+		Methods("GET", "POST", "PATCH", "PUT")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}", queueAliasVar),
 		func(resp http.ResponseWriter, req *http.Request) {
 			s.NoPartyHandler(ctx, resp, req)
 		}).
-		Methods("GET", "POST", "PATCH", "DELETE")
+		Methods("GET", "POST", "PATCH", "PUT")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}?{%s:[a-zA-Z0-9=\\-\\/]+}", queueAliasVar, resourceVar),
 		func(resp http.ResponseWriter, req *http.Request) {
 			s.NoPartyHandler(ctx, resp, req)
 		}).
-		Methods("GET", "POST", "PATCH", "DELETE")
+		Methods("GET", "POST", "PATCH", "PUT")
 }
