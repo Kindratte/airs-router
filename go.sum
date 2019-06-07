@@ -46,6 +46,7 @@ github.com/untillpro/airs-iqueues v0.0.0-20190604115453-ee50066da68b h1:sm0qaIEO
 github.com/untillpro/airs-iqueues v0.0.0-20190604115453-ee50066da68b/go.mod h1:IEdwsGFU9bty0PtlH2A9Yeym3RKHKDmXlYiWcEbwcSI=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190514115615-0035cf11e608 h1:4bBS2yxt3G+zvtxLGs2/xkeUk/cRWfULWcnqWffnD60=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190514115615-0035cf11e608/go.mod h1:S+lynp4yQIZq9a7RtoKr7OFYNmtHuy5/+Z14/jYjDr8=
+github.com/untillpro/airs-iqueuesnats v0.0.0-20190604120030-09311fefa240 h1:/27DOrcTK0z+rvWHmXESo2p7Kj9TAddQmt79Aorf6Hw=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190604120030-09311fefa240/go.mod h1:ckvUthAB7iBQOhbhYfsW19X4XKawa6KwReabAZQ9kr4=
 github.com/untillpro/gochips v1.9.0 h1:RpvKppiix6uzKSVBBQNlrD17dk7QCtVLw3EBNDOH5DI=
 github.com/untillpro/gochips v1.9.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=

@@ -5,28 +5,42 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-package router
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/untillpro/airs-iconfig"
+	config "github.com/untillpro/airs-iconfigcon"
 	"github.com/untillpro/airs-iqueues"
+	queues "github.com/untillpro/airs-iqueuesnats"
+	"github.com/untillpro/gochips"
+	"github.com/untillpro/godif"
+	"github.com/untillpro/godif/iservices"
+	"github.com/untillpro/godif/services"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const (
+	//Gorilla mux params
 	queueAliasVar        = "queue-alias"
 	partitionDividendVar = "partition-dividend"
 	resourceNameVar      = "resource-name"
-	resourceVar          = "resource"
+	//Settings
+	defaultRouterPort             = 8822
+	defaultRouterReadTimeout      = 10
+	defaultRouterWriteTimeout     = 10
+	defaultRouterConnectionsLimit = 10000
 )
 
-var QueueNumberOfPartitions = make(map[string]int)
+var queueNumberOfPartitions = make(map[string]int)
 
 //Handler partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
@@ -42,7 +56,7 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 			http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
 			return
 		}
-		queueRequest.Body = string(body)
+		queueRequest.Body = strings.Replace(string(body), "'", "", -1)
 	}
 	if queueRequest.PartitionDividend == 0 {
 		http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
@@ -56,9 +70,9 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	alias := vars[queueAliasVar]
-	numberOfPartitions := QueueNumberOfPartitions[alias]
+	numberOfPartitions := queueNumberOfPartitions[alias]
 	if numberOfPartitions == 0 {
-		pathSuffix := vars[resourceVar]
+		pathSuffix := vars[resourceNameVar]
 		queueRequest := &iqueues.Request{
 			Method:            iqueues.NameToHTTPMethod[req.Method],
 			QueueID:           alias + ":0",
@@ -85,9 +99,9 @@ func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, 
 
 //Returns registered queue names
 func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
-	keys := make([]string, len(QueueNumberOfPartitions))
+	keys := make([]string, len(queueNumberOfPartitions))
 	i := 0
-	for k := range QueueNumberOfPartitions {
+	for k := range queueNumberOfPartitions {
 		keys[i] = k
 		i++
 	}
@@ -116,7 +130,7 @@ func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 
 func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error) {
 	vars := mux.Vars(req)
-	numberOfPartitions := QueueNumberOfPartitions[vars[queueAliasVar]]
+	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 	partitionDividend := vars[partitionDividendVar]
 	partitionDividendNum, err := strconv.ParseInt(partitionDividend, 10, 64)
 	if err != nil {
@@ -133,7 +147,7 @@ func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error
 
 func (s *Service) chooseHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	numberOfPartitions := QueueNumberOfPartitions[vars[queueAliasVar]]
+	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 	if numberOfPartitions == 0 {
 		s.NoPartyHandler(ctx, resp, req)
 	} else {
@@ -145,24 +159,49 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 	s.router.HandleFunc("/", s.QueueNamesHandler)
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), s.HelpHandler(ctx)).
 		Methods("GET")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}?{%s:[a-zA-Z0-9=\\-\\/]+}", queueAliasVar,
-		partitionDividendVar, resourceNameVar, resourceVar), func(resp http.ResponseWriter, req *http.Request) {
-		s.chooseHandler(ctx, resp, req)
-	}).
-		Methods("GET", "POST", "PATCH", "PUT")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), func(resp http.ResponseWriter, req *http.Request) {
 		s.chooseHandler(ctx, resp, req)
 	}).
 		Methods("GET", "POST", "PATCH", "PUT")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}", queueAliasVar),
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar),
 		func(resp http.ResponseWriter, req *http.Request) {
 			s.NoPartyHandler(ctx, resp, req)
 		}).
 		Methods("GET", "POST", "PATCH", "PUT")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}?{%s:[a-zA-Z0-9=\\-\\/]+}", queueAliasVar, resourceVar),
-		func(resp http.ResponseWriter, req *http.Request) {
-			s.NoPartyHandler(ctx, resp, req)
-		}).
-		Methods("GET", "POST", "PATCH", "PUT")
+}
+
+func addHandlers() {
+	queueNumberOfPartitions["air-bo-view"] = 0
+	queueNumberOfPartitions["air-bo"] = 10
+}
+
+func main() {
+	var consulHost = flag.String("ch", config.DefaultConsulHost, "Consul server URL")
+	var consulPort = flag.Int("cp", config.DefaultConsulPort, "Consul port")
+	var natsServers = flag.String("ns", queues.DefaultNatsHost, "The nats server URLs (separated by comma)")
+	var routerPort = flag.Int("p", defaultRouterPort, "Server port")
+	var routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
+	var routerReadTimeout = flag.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
+	var routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+	flag.Parse()
+
+	services.DeclareRequire()
+
+	godif.Require(&iconfig.PutConfig)
+	godif.Require(&iconfig.GetConfig)
+	godif.Require(&iqueues.InvokeFromHTTPRequest)
+	godif.Require(&iqueues.Invoke)
+
+	config.Declare(config.Service{Host: *consulHost, Port: uint16(*consulPort)})
+	queues.Declare(queues.Service{Servers: *natsServers})
+	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
+		ConnectionsLimit: *routerConnectionsLimit})
+
+	addHandlers()
+
+	err := iservices.Run()
+	if err != nil {
+		gochips.Info(err)
+	}
 }
