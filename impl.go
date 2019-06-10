@@ -241,5 +241,8 @@ func (s *Service) sendOptions(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Access-Control-Allow-Credentials", "true")
 	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, PATCH")
 	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	s.router.ServeHTTP(resp, req)
+	_, err := resp.Write([]byte{})
+	if err != nil {
+		http.Error(resp, err.Error(), http.StatusBadRequest)
+	}
 }

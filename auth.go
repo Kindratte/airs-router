@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/untillpro/airs-iconfig"
+	iqueues "github.com/untillpro/airs-iqueues"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"math/rand"
@@ -51,11 +52,11 @@ func (account *Account) Validate(ctx context.Context) (string, bool) {
 	return "Requirement passed", true
 }
 
-func (account *Account) Create(ctx context.Context) []byte {
+func (account *Account) Create(ctx context.Context) *iqueues.Response {
 	rand.Seed(time.Now().UnixNano())
 
 	if resp, ok := account.Validate(ctx); !ok {
-		return []byte(resp)
+		return createResponse(http.StatusBadRequest, resp)
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(account.Password), bcrypt.DefaultCost)
@@ -63,17 +64,12 @@ func (account *Account) Create(ctx context.Context) []byte {
 
 	err := iconfig.PutConfig(ctx, account.Login, &account)
 	if err != nil {
-		return []byte("Can't put account to KV")
+		return createResponse(http.StatusBadRequest, "Can't put account to KV")
 	}
 
 	resp := create72HourToken()
 
-	buf, err := json.Marshal(resp)
-	if err != nil {
-		return []byte("Can't marshal account")
-	}
-
-	return buf
+	return createResponse(http.StatusOK, resp)
 }
 
 func create72HourToken() *Resp {
@@ -87,28 +83,23 @@ func create72HourToken() *Resp {
 	}
 }
 
-func Login(ctx context.Context, login, password string) []byte {
+func Login(ctx context.Context, login, password string) *iqueues.Response {
 
 	var account Account
 	err := iconfig.GetConfig(ctx, login, &account)
 	if err != nil {
-		return []byte("Login address not found")
+		return createResponse(http.StatusBadRequest, "Login address not found")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password))
 	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword { //Password does not match!
-		return []byte("Invalid login credentials. Please try again")
+		return createResponse(http.StatusBadRequest, "Invalid login credentials. Please try again")
 	}
 
 	//Create JWT token
 	resp := create72HourToken()
 
-	buf, err := json.Marshal(resp)
-	if err != nil {
-		return []byte("Can't marshal account")
-	}
-
-	return buf
+	return createResponse(http.StatusOK, resp)
 }
 
 var JwtAuthentication = func(next http.Handler) http.Handler {
@@ -168,7 +159,10 @@ func (s *Service) CreateAccount(ctx context.Context) http.HandlerFunc {
 			return
 		}
 		newAcc := acc.Create(ctx)
-		resp.Write(newAcc)
+
+		data, err := json.Marshal(newAcc)
+
+		resp.Write(data)
 	}
 }
 
@@ -181,6 +175,17 @@ func (s *Service) Authenticate(ctx context.Context) http.HandlerFunc {
 			return
 		}
 		newAcc := Login(ctx, acc.Login, acc.Password)
-		resp.Write(newAcc)
+
+		data, err := json.Marshal(newAcc)
+
+		resp.Write(data)
+	}
+}
+
+func createResponse(statusCode int, message interface{}) *iqueues.Response {
+	return &iqueues.Response{
+		Status:     http.StatusText(statusCode),
+		StatusCode: statusCode,
+		Data:       message,
 	}
 }
