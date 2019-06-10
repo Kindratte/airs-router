@@ -44,6 +44,12 @@ var queueNumberOfPartitions = make(map[string]int)
 
 //Handler partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
+	//hack for eugene
+	if req.Method == http.MethodOptions {
+		s.sendOptions(resp, req)
+		return
+	}
+	//hack for eugene
 	queueRequest, err := createRequest(req.Method, req)
 	if err != nil {
 		http.Error(resp, err.Error(), http.StatusBadRequest)
@@ -68,6 +74,12 @@ func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int
 
 //Handle no party requests
 func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	//hack for eugene
+	if req.Method == http.MethodOptions {
+		s.sendOptions(resp, req)
+		return
+	}
+	//hack for eugene
 	vars := mux.Vars(req)
 	alias := vars[queueAliasVar]
 	numberOfPartitions := queueNumberOfPartitions[alias]
@@ -99,6 +111,12 @@ func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, 
 
 //Returns registered queue names
 func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
+	//hack for eugene
+	if req.Method == http.MethodOptions {
+		s.sendOptions(resp, req)
+		return
+	}
+	//hack for eugene
 	keys := make([]string, len(queueNumberOfPartitions))
 	i := 0
 	for k := range queueNumberOfPartitions {
@@ -118,6 +136,12 @@ func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request)
 //Returns list of resources
 func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
+		//hack for eugene
+		if req.Method == http.MethodOptions {
+			s.sendOptions(resp, req)
+			return
+		}
+		//hack for eugene
 		queueRequest, err := createRequest(req.Method, req)
 		if err != nil {
 			http.Error(resp, err.Error(), http.StatusBadRequest)
@@ -162,17 +186,17 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 	//Auth
 	s.router.HandleFunc("/", s.QueueNamesHandler)
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), s.HelpHandler(ctx)).
-		Methods("GET")
+		Methods("GET", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), func(resp http.ResponseWriter, req *http.Request) {
 		s.chooseHandler(ctx, resp, req)
 	}).
-		Methods("GET", "POST", "PATCH", "PUT")
+		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar),
 		func(resp http.ResponseWriter, req *http.Request) {
 			s.NoPartyHandler(ctx, resp, req)
 		}).
-		Methods("GET", "POST", "PATCH", "PUT")
+		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
 }
 
 func addHandlers() {
@@ -209,4 +233,13 @@ func main() {
 	if err != nil {
 		gochips.Info(err)
 	}
+}
+
+//hack for eugene
+func (s *Service) sendOptions(resp http.ResponseWriter, req *http.Request) {
+	resp.Header().Set("Access-Control-Allow-Origin", "*")
+	resp.Header().Set("Access-Control-Allow-Credentials", "true")
+	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, PATCH")
+	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	s.router.ServeHTTP(resp, req)
 }
