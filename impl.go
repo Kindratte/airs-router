@@ -156,6 +156,10 @@ func (s *Service) chooseHandler(ctx context.Context, resp http.ResponseWriter, r
 }
 
 func (s *Service) RegisterHandlers(ctx context.Context) {
+	//Auth
+	s.router.HandleFunc("/user/new", s.CreateAccount(ctx)).Methods("POST")
+	s.router.HandleFunc("/user/login", s.Authenticate(ctx)).Methods("POST")
+	//Auth
 	s.router.HandleFunc("/", s.QueueNamesHandler)
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), s.HelpHandler(ctx)).
 		Methods("GET")
@@ -174,6 +178,7 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 func addHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
+	queueNumberOfPartitions["manifest"] = 0
 }
 
 func main() {

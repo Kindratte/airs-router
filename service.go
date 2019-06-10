@@ -37,6 +37,7 @@ func getService(ctx context.Context) *Service {
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	s.router = mux.NewRouter()
+	s.router.Use(JwtAuthentication)
 
 	port := strconv.Itoa(s.Port)
 
