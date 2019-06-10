@@ -10,7 +10,7 @@ services:
       - -t=10
       - -w=tmp
       - --
-      - -ch traefik_consul_server -ns n_nats1,n_nats2,n_nats3
+      - -ch=traefik_consul_server -ns=n_nats1,n_nats2,n_nats3
     deploy:
       labels:
         - traefik.enable=true
