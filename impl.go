@@ -116,6 +116,10 @@ func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request)
 		s.sendOptions(resp, req)
 		return
 	}
+	resp.Header().Set("Access-Control-Allow-Origin", "*")
+	resp.Header().Set("Access-Control-Allow-Credentials", "true")
+	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, PATCH")
+	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	//hack for eugene
 	keys := make([]string, len(queueNumberOfPartitions))
 	i := 0
@@ -213,7 +217,10 @@ func main() {
 	var routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
 	var routerReadTimeout = flag.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
 	var routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+
 	flag.Parse()
+	gochips.Info("nats: " + *natsServers)
+	gochips.Info("consul: " + *consulHost)
 
 	services.DeclareRequire()
 

@@ -50,6 +50,8 @@ github.com/untillpro/airs-iqueuesnats v0.0.0-20190604120030-09311fefa240 h1:/27D
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190604120030-09311fefa240/go.mod h1:ckvUthAB7iBQOhbhYfsW19X4XKawa6KwReabAZQ9kr4=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190610131617-6837deb31785 h1:DsU1uPVK5CBKyNy+HQL1DTKrJv/Q/vvAhc7SWL2OVOA=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190610131617-6837deb31785/go.mod h1:ckvUthAB7iBQOhbhYfsW19X4XKawa6KwReabAZQ9kr4=
+github.com/untillpro/airs-iqueuesnats v0.0.0-20190610135114-2fdf8099c94f h1:DpLJYhcR8zA/JU3D8h6p9unNl9AUmZ3iQsNH0FEJKqo=
+github.com/untillpro/airs-iqueuesnats v0.0.0-20190610135114-2fdf8099c94f/go.mod h1:ckvUthAB7iBQOhbhYfsW19X4XKawa6KwReabAZQ9kr4=
 github.com/untillpro/gochips v1.9.0 h1:RpvKppiix6uzKSVBBQNlrD17dk7QCtVLw3EBNDOH5DI=
 github.com/untillpro/gochips v1.9.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
 github.com/untillpro/godif v0.9.0 h1:AVRjQwYTXJeYsFwnEHDzgsHLLJTGY7NcRYXsMmqr/0A=
