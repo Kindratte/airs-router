@@ -7,7 +7,6 @@ import (
 	"github.com/untillpro/airs-iconfig"
 	iqueues "github.com/untillpro/airs-iqueues"
 	"golang.org/x/crypto/bcrypt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -104,6 +103,10 @@ func Login(ctx context.Context, login, password string) *iqueues.Response {
 
 var JwtAuthentication = func(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		notAuth := []string{"/user/new", "/user/login"}
 		requestPath := r.URL.Path
 		for _, value := range notAuth {
@@ -143,7 +146,6 @@ var JwtAuthentication = func(next http.Handler) http.Handler {
 		}
 
 		//Everything went well, proceed with the request and set the caller to the user retrieved from the parsed token
-		log.Println("User", tk.UserId) //Useful for monitoring
 		ctx := context.WithValue(r.Context(), "user", tk.UserId)
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r) //proceed in the middleware chain!

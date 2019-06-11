@@ -9,11 +9,13 @@ package main
 
 import (
 	"context"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/untillpro/gochips"
 	"golang.org/x/net/netutil"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -53,7 +55,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 
 	s.server = &http.Server{
 		Addr:         ":" + port,
-		Handler:      s.router,
+		Handler:      handlers.LoggingHandler(os.Stdout, s.router),
 		ReadTimeout:  time.Duration(s.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(s.WriteTimeout) * time.Second,
 	}

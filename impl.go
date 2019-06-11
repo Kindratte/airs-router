@@ -35,117 +35,97 @@ const (
 	resourceNameVar      = "resource-name"
 	//Settings
 	defaultRouterPort             = 8822
-	defaultRouterReadTimeout      = 10
-	defaultRouterWriteTimeout     = 10
+	defaultRouterReadTimeout      = 15
+	defaultRouterWriteTimeout     = 15
 	defaultRouterConnectionsLimit = 10000
 )
 
 var queueNumberOfPartitions = make(map[string]int)
 
 //Handler partitioned requests
-func (s *Service) PartitionedHandler(ctx context.Context, numberOfPartitions int, vars map[string]string, resp http.ResponseWriter, req *http.Request) {
-	//hack for eugene
-	if req.Method == http.MethodOptions {
-		s.sendOptions(resp, req)
-		return
-	}
-	//hack for eugene
-	queueRequest, err := createRequest(req.Method, req)
-	if err != nil {
-		http.Error(resp, err.Error(), http.StatusBadRequest)
-		return
-	}
-	queueRequest.Resource = vars[resourceNameVar]
-	if req.Body != nil {
-		body, err := ioutil.ReadAll(req.Body)
+func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
+		queueRequest, err := createRequest(req.Method, req)
 		if err != nil {
-			http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
+			http.Error(resp, err.Error(), http.StatusBadRequest)
 			return
 		}
-		queueRequest.Body = strings.Replace(string(body), "'", "", -1)
-	}
-	if queueRequest.PartitionDividend == 0 {
-		http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
-		return
-	}
-	queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
-	iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
-}
-
-//Handle no party requests
-func (s *Service) NoPartyHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	//hack for eugene
-	if req.Method == http.MethodOptions {
-		s.sendOptions(resp, req)
-		return
-	}
-	//hack for eugene
-	vars := mux.Vars(req)
-	alias := vars[queueAliasVar]
-	numberOfPartitions := queueNumberOfPartitions[alias]
-	if numberOfPartitions == 0 {
-		pathSuffix := vars[resourceNameVar]
-		queueRequest := &iqueues.Request{
-			Method:            iqueues.NameToHTTPMethod[req.Method],
-			QueueID:           alias + ":0",
-			PartitionDividend: 0,
-			PartitionNumber:   0,
-			Resource:          pathSuffix,
-			Query:             req.URL.Query(),
-			Attachments:       map[string]string{},
-		}
+		queueRequest.Resource = vars[resourceNameVar]
 		if req.Body != nil {
 			body, err := ioutil.ReadAll(req.Body)
 			if err != nil {
 				http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
 				return
 			}
-			queueRequest.Body = string(body)
+			queueRequest.Body = strings.Replace(string(body), "'", "", -1)
 		}
+		if queueRequest.PartitionDividend == 0 {
+			http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
+			return
+		}
+		queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
 		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
-	} else {
-		http.Error(resp, "wrong route to no party handler", http.StatusBadRequest)
-		return
+	}
+}
+
+//Handle no party requests
+func (s *Service) NoPartyHandler(ctx context.Context) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		alias := vars[queueAliasVar]
+		numberOfPartitions := queueNumberOfPartitions[alias]
+		if numberOfPartitions == 0 {
+			pathSuffix := vars[resourceNameVar]
+			queueRequest := &iqueues.Request{
+				Method:            iqueues.NameToHTTPMethod[req.Method],
+				QueueID:           alias + ":0",
+				PartitionDividend: 0,
+				PartitionNumber:   0,
+				Resource:          pathSuffix,
+				Query:             req.URL.Query(),
+				Attachments:       map[string]string{},
+			}
+			if req.Body != nil {
+				body, err := ioutil.ReadAll(req.Body)
+				if err != nil {
+					http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
+					return
+				}
+				queueRequest.Body = string(body)
+			}
+			iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
+		} else {
+			http.Error(resp, "wrong route to no party handler", http.StatusBadRequest)
+			return
+		}
 	}
 }
 
 //Returns registered queue names
-func (s *Service) QueueNamesHandler(resp http.ResponseWriter, req *http.Request) {
-	//hack for eugene
-	if req.Method == http.MethodOptions {
-		s.sendOptions(resp, req)
-		return
-	}
-	resp.Header().Set("Access-Control-Allow-Origin", "*")
-	resp.Header().Set("Access-Control-Allow-Credentials", "true")
-	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, PATCH")
-	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	//hack for eugene
-	keys := make([]string, len(queueNumberOfPartitions))
-	i := 0
-	for k := range queueNumberOfPartitions {
-		keys[i] = k
-		i++
-	}
-	marshaled, err := json.Marshal(keys)
-	if err != nil {
-		http.Error(resp, "can't marshal queue aliases", http.StatusBadRequest)
-	}
-	_, err = fmt.Fprintf(resp, string(marshaled))
-	if err != nil {
-		http.Error(resp, "can't write response", http.StatusBadRequest)
+func (s *Service) QueueNamesHandler() http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		keys := make([]string, len(queueNumberOfPartitions))
+		i := 0
+		for k := range queueNumberOfPartitions {
+			keys[i] = k
+			i++
+		}
+		marshaled, err := json.Marshal(keys)
+		if err != nil {
+			http.Error(resp, "can't marshal queue aliases", http.StatusBadRequest)
+		}
+		_, err = fmt.Fprintf(resp, string(marshaled))
+		if err != nil {
+			http.Error(resp, "can't write response", http.StatusBadRequest)
+		}
 	}
 }
 
 //Returns list of resources
 func (s *Service) HelpHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		//hack for eugene
-		if req.Method == http.MethodOptions {
-			s.sendOptions(resp, req)
-			return
-		}
-		//hack for eugene
 		queueRequest, err := createRequest(req.Method, req)
 		if err != nil {
 			http.Error(resp, err.Error(), http.StatusBadRequest)
@@ -173,40 +153,25 @@ func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error
 	}, nil
 }
 
-func (s *Service) chooseHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
-	if numberOfPartitions == 0 {
-		s.NoPartyHandler(ctx, resp, req)
-	} else {
-		s.PartitionedHandler(ctx, numberOfPartitions, vars, resp, req)
-	}
-}
-
 func (s *Service) RegisterHandlers(ctx context.Context) {
 	//Auth
-	s.router.HandleFunc("/user/new", s.CreateAccount(ctx)).Methods("POST")
-	s.router.HandleFunc("/user/login", s.Authenticate(ctx)).Methods("POST")
+	s.router.HandleFunc("/user/new", corsHandler(s.CreateAccount(ctx))).Methods("POST", "OPTIONS")
+	s.router.HandleFunc("/user/login", corsHandler(s.Authenticate(ctx))).Methods("POST", "OPTIONS")
 	//Auth
-	s.router.HandleFunc("/", s.QueueNamesHandler)
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), s.HelpHandler(ctx)).
+	s.router.HandleFunc("/", corsHandler(s.QueueNamesHandler()))
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.HelpHandler(ctx))).
 		Methods("GET", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
-		partitionDividendVar, resourceNameVar), func(resp http.ResponseWriter, req *http.Request) {
-		s.chooseHandler(ctx, resp, req)
-	}).
+		partitionDividendVar, resourceNameVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar),
-		func(resp http.ResponseWriter, req *http.Request) {
-			s.NoPartyHandler(ctx, resp, req)
-		}).
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar), corsHandler(s.NoPartyHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
 }
 
 func addHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 10
-	queueNumberOfPartitions["manifest"] = 0
+	queueNumberOfPartitions["modules"] = 0
 }
 
 func main() {
@@ -242,14 +207,20 @@ func main() {
 	}
 }
 
-//hack for eugene
-func (s *Service) sendOptions(resp http.ResponseWriter, req *http.Request) {
-	resp.Header().Set("Access-Control-Allow-Origin", "*")
-	resp.Header().Set("Access-Control-Allow-Credentials", "true")
-	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, PATCH")
-	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	_, err := resp.Write([]byte{})
-	if err != nil {
-		http.Error(resp, err.Error(), http.StatusBadRequest)
+func corsHandler(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		setupResponse(w)
+		if r.Method == "OPTIONS" {
+			return
+		} else {
+			h.ServeHTTP(w, r)
+		}
 	}
+}
+
+func setupResponse(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, PATCH")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
 }
