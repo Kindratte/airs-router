@@ -35,9 +35,10 @@ const (
 	resourceNameVar      = "resource-name"
 	//Settings
 	defaultRouterPort             = 8822
-	defaultRouterReadTimeout      = 15
-	defaultRouterWriteTimeout     = 15
 	defaultRouterConnectionsLimit = 10000
+	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
+	defaultRouterReadTimeout  = 15
+	defaultRouterWriteTimeout = 15
 )
 
 var queueNumberOfPartitions = make(map[string]int)
