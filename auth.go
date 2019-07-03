@@ -165,7 +165,11 @@ func (s *Service) CreateAccount(ctx context.Context) http.HandlerFunc {
 		data, err := json.Marshal(newAcc)
 
 		resp.Header().Set("Access-Control-Allow-Origin", "*")
-		resp.Write(data)
+		if newAcc.StatusCode != http.StatusOK {
+			http.Error(resp, string(data), newAcc.StatusCode)
+		} else {
+			resp.Write(data)
+		}
 	}
 }
 
@@ -182,7 +186,11 @@ func (s *Service) Authenticate(ctx context.Context) http.HandlerFunc {
 		data, err := json.Marshal(newAcc)
 
 		resp.Header().Set("Access-Control-Allow-Origin", "*")
-		resp.Write(data)
+		if newAcc.StatusCode != http.StatusOK {
+			http.Error(resp, string(data), newAcc.StatusCode)
+		} else {
+			resp.Write(data)
+		}
 	}
 }
 
