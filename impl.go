@@ -71,6 +71,35 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 	}
 }
 
+func (s *Service) AirBoHandler(ctx context.Context) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
+		queueRequest, err := createRequest(req.Method, req)
+		if err != nil {
+			http.Error(resp, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if queueRequest.PartitionDividend == 0 {
+			http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
+			return
+		}
+		if req.Body != nil {
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
+				return
+			}
+			queueRequest.Body = strings.Replace(string(body), "'", "", -1)
+		} else {
+			http.Error(resp, "request body can't be nil", http.StatusBadRequest)
+			return
+		}
+		queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
+		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
+	}
+}
+
 //Handle no party requests
 func (s *Service) NoPartyHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
@@ -162,6 +191,8 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 	s.router.HandleFunc("/", corsHandler(s.QueueNamesHandler()))
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.HelpHandler(ctx))).
 		Methods("GET", "OPTIONS")
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.PartitionedHandler(ctx))).
+		Methods("POST", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
