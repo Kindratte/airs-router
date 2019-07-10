@@ -193,10 +193,10 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 		Methods("GET", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("POST", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z]+}", queueAliasVar,
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z]+}", queueAliasVar, resourceNameVar), corsHandler(s.NoPartyHandler(ctx))).
+	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z_]+}", queueAliasVar, resourceNameVar), corsHandler(s.NoPartyHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
 }
 
