@@ -20,12 +20,10 @@ import (
 	queues "github.com/untillpro/airs-iqueuesnats"
 	"github.com/untillpro/gochips"
 	"github.com/untillpro/godif"
-	"github.com/untillpro/godif/iservices"
 	"github.com/untillpro/godif/services"
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -60,39 +58,10 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 				http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
 				return
 			}
-			queueRequest.Body = strings.Replace(string(body), "'", "", -1)
+			queueRequest.Body = string(body)
 		}
 		if queueRequest.PartitionDividend == 0 {
 			http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
-			return
-		}
-		queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
-		iqueues.InvokeFromHTTPRequest(ctx, queueRequest, resp, iqueues.DefaultTimeout)
-	}
-}
-
-func (s *Service) AirBoHandler(ctx context.Context) http.HandlerFunc {
-	return func(resp http.ResponseWriter, req *http.Request) {
-		vars := mux.Vars(req)
-		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
-		queueRequest, err := createRequest(req.Method, req)
-		if err != nil {
-			http.Error(resp, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if queueRequest.PartitionDividend == 0 {
-			http.Error(resp, "partition dividend in partitioned queues must be not 0", http.StatusBadRequest)
-			return
-		}
-		if req.Body != nil {
-			body, err := ioutil.ReadAll(req.Body)
-			if err != nil {
-				http.Error(resp, "can't read request body: "+string(body), http.StatusBadRequest)
-				return
-			}
-			queueRequest.Body = strings.Replace(string(body), "'", "", -1)
-		} else {
-			http.Error(resp, "request body can't be nil", http.StatusBadRequest)
 			return
 		}
 		queueRequest.PartitionNumber = int(queueRequest.PartitionDividend % int64(numberOfPartitions))
@@ -217,12 +186,10 @@ func main() {
 
 	flag.Parse()
 	gochips.Info("nats: " + *natsServers)
-	gochips.Info("consul: " + *consulHost)
-
-	services.DeclareRequire()
 
 	godif.Require(&iconfig.PutConfig)
 	godif.Require(&iconfig.GetConfig)
+
 	godif.Require(&iqueues.InvokeFromHTTPRequest)
 	godif.Require(&iqueues.Invoke)
 
@@ -233,7 +200,7 @@ func main() {
 
 	addHandlers()
 
-	err := iservices.Run()
+	err := services.Run()
 	if err != nil {
 		gochips.Info(err)
 	}

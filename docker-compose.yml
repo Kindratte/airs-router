@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   airs-router:
-    image: ${DOCKER_LOGIN}/directcd:1.1
+    image: ${DOCKER_LOGIN}/directcd:1.2
     command:
       - pull
       - --repo=https://github.com/untillpro/airs-router
@@ -15,7 +15,7 @@ services:
     deploy:
       labels:
         - traefik.enable=true
-        - traefik.frontend.rule=PathPrefixStrip:/airs-router
+        - traefik.frontend.rule=PathPrefixStrip:/api
         - traefik.port=8822
         - traefik.docker.network=webgateway
     networks:

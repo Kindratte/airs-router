@@ -9,10 +9,10 @@ package main
 
 import (
 	"github.com/untillpro/godif"
-	"github.com/untillpro/godif/iservices"
+	"github.com/untillpro/godif/services"
 )
 
 // Declare s.e.
 func Declare(service Service) {
-	godif.ProvideSliceElement(&iservices.Services, &service)
+	godif.ProvideSliceElement(&services.Services, &service)
 }
