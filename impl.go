@@ -171,7 +171,7 @@ func (s *Service) RegisterHandlers(ctx context.Context) {
 
 func addHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
-	queueNumberOfPartitions["air-bo"] = 10
+	queueNumberOfPartitions["air-bo"] = 100
 	queueNumberOfPartitions["modules"] = 0
 }
 
