@@ -154,18 +154,18 @@ func createRequest(reqMethod string, req *http.Request) (*iqueues.Request, error
 
 func (s *Service) RegisterHandlers(ctx context.Context) {
 	//Auth
-	s.router.HandleFunc("/user/new", corsHandler(s.CreateAccount(ctx))).Methods("POST", "OPTIONS")
-	s.router.HandleFunc("/user/login", corsHandler(s.Authenticate(ctx))).Methods("POST", "OPTIONS")
+	s.router.HandleFunc("/api/user/new", corsHandler(s.CreateAccount(ctx))).Methods("POST", "OPTIONS")
+	s.router.HandleFunc("/api/user/login", corsHandler(s.Authenticate(ctx))).Methods("POST", "OPTIONS")
 	//Auth
-	s.router.HandleFunc("/", corsHandler(s.QueueNamesHandler()))
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.HelpHandler(ctx))).
+	s.router.HandleFunc("/api", corsHandler(s.QueueNamesHandler()))
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.HelpHandler(ctx))).
 		Methods("GET", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.PartitionedHandler(ctx))).
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, partitionDividendVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("POST", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_]+}", queueAliasVar,
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_]+}", queueAliasVar,
 		partitionDividendVar, resourceNameVar), corsHandler(s.PartitionedHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/{%s}/{%s:[a-zA-Z_]+}", queueAliasVar, resourceNameVar), corsHandler(s.NoPartyHandler(ctx))).
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[a-zA-Z_]+}", queueAliasVar, resourceNameVar), corsHandler(s.NoPartyHandler(ctx))).
 		Methods("GET", "POST", "PATCH", "PUT", "OPTIONS")
 }
 
