@@ -43,8 +43,11 @@ func (account *Account) Validate(ctx context.Context) (string, bool) {
 	}
 
 	var temp Account
-	_, err := iconfig.GetConfig(ctx, account.Login, &temp)
-	if err == nil {
+	ok, err := iconfig.GetConfig(ctx, account.Login, &temp)
+	if err != nil {
+		return "Error in users storage", false
+	}
+	if ok {
 		return "Login address already in use", false
 	}
 
@@ -85,8 +88,11 @@ func create72HourToken() *Resp {
 func Login(ctx context.Context, login, password string) *iqueues.Response {
 
 	var account Account
-	_, err := iconfig.GetConfig(ctx, login, &account)
+	ok, err := iconfig.GetConfig(ctx, login, &account)
 	if err != nil {
+		return createResponse(http.StatusBadRequest, "Error in users storage")
+	}
+	if !ok {
 		return createResponse(http.StatusBadRequest, "Login address not found")
 	}
 
