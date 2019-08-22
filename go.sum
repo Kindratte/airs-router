@@ -35,8 +35,12 @@ github.com/untillpro/airs-iconfigcon v0.0.0-20190715123734-41d912ce7c51 h1:mBdt8
 github.com/untillpro/airs-iconfigcon v0.0.0-20190715123734-41d912ce7c51/go.mod h1:L6EalfyIt5E5kZeH/hYQ4sci7ub29qmTqvnPITPr2ww=
 github.com/untillpro/airs-iqueues v0.0.0-20190604115453-ee50066da68b h1:sm0qaIEOlUs+us+OEK+hKjBIJEr3I84KZWpEZMWx0Jo=
 github.com/untillpro/airs-iqueues v0.0.0-20190604115453-ee50066da68b/go.mod h1:IEdwsGFU9bty0PtlH2A9Yeym3RKHKDmXlYiWcEbwcSI=
+github.com/untillpro/airs-iqueues v0.0.0-20190731083841-63b742190cad h1:buLbI0TB/qqH4ftZkecRcwZW5wmrgrOW4Cyl9Dgy4no=
+github.com/untillpro/airs-iqueues v0.0.0-20190731083841-63b742190cad/go.mod h1:IEdwsGFU9bty0PtlH2A9Yeym3RKHKDmXlYiWcEbwcSI=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190715120711-d9ff84dbab9b h1:00X7b/n6+u+vyNvQKIE390jNCi9xGmV79J+OIIDkW0U=
 github.com/untillpro/airs-iqueuesnats v0.0.0-20190715120711-d9ff84dbab9b/go.mod h1:2JtLHCBFUvFdi+bIWiQYVv3GN+QxMcYWztO2qyQmUBg=
+github.com/untillpro/airs-iqueuesnats v0.0.0-20190822110023-2fe7980b036e h1:VQHLHeZkMu4Ue7tgP+cfpo9rTztWjiZbAPRRqW82xxU=
+github.com/untillpro/airs-iqueuesnats v0.0.0-20190822110023-2fe7980b036e/go.mod h1:BVB2g+cpuEUTRl+XOTBK1sMx2r6QWQvGNeH+TKk+9aE=
 github.com/untillpro/gochips v1.9.0 h1:RpvKppiix6uzKSVBBQNlrD17dk7QCtVLw3EBNDOH5DI=
 github.com/untillpro/gochips v1.9.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
 github.com/untillpro/godif v0.12.0 h1:S060zVVf9hXMTkm6bekDqqlZwVxduiIByGl7N/M1kHg=

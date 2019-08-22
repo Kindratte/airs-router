@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   airs-router:
-    image: ${DOCKER_LOGIN}/directcd:1.2
+    image: ${DOCKER_LOGIN}/cdernode:v0.14.1
     command:
       - pull
       - --repo=https://github.com/untillpro/airs-router
