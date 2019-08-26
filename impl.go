@@ -173,6 +173,9 @@ func addHandlers() {
 	queueNumberOfPartitions["air-bo-view"] = 0
 	queueNumberOfPartitions["air-bo"] = 100
 	queueNumberOfPartitions["modules"] = 0
+	//TEST
+	queueNumberOfPartitions["test"] = 100
+	//TEST
 }
 
 func main() {
