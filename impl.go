@@ -175,6 +175,7 @@ func addHandlers() {
 	queueNumberOfPartitions["modules"] = 0
 	//TEST
 	queueNumberOfPartitions["test"] = 100
+	queueNumberOfPartitions["test-cas"] = 100
 	//TEST
 }
 
